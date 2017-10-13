@@ -1,5 +1,5 @@
 cimport options
-from libc.stdint cimport uint64_t
+from libc.stdint cimport uint64_t, int32_t
 from status cimport Status
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
@@ -141,3 +141,24 @@ cdef extern from "rocksdb/db.h" namespace "rocksdb":
         cpp_bool) nogil except+
 
     cdef Status RepairDB(const string& dbname, const options.Options&)
+
+cdef extern from "rocksdb/utilities/stackable_db.h" namespace "rocksdb":
+
+    cdef cppclass StackableDB(DB)
+
+cdef extern from "rocksdb/utilities/db_ttl.h" namespace "rocksdb":
+
+    cdef cppclass DBWithTTL(StackableDB)
+
+    cdef Status DBWithTTL_Open "rocksdb::DBWithTTL::Open"(
+        const options.Options&,
+        const string&,
+        DBWithTTL**,
+        int32_t) nogil except+
+
+    cdef Status DBWithTTL_OpenForReadOnly "rocksdb::DBWithTTL::Open"(
+        const options.Options&,
+        const string&,
+        DBWithTTL**,
+        int32_t,
+        cpp_bool) nogil except+

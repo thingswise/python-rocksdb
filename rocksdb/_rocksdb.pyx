@@ -4,7 +4,8 @@ from libcpp.deque cimport deque
 from libcpp.vector cimport vector
 from cpython cimport bool as py_bool
 from libcpp cimport bool as cpp_bool
-from libc.stdint cimport uint32_t
+from libcpp cimport cast
+from libc.stdint cimport uint32_t, int32_t
 from cython.operator cimport dereference as deref
 from cpython.bytes cimport PyBytes_AsString
 from cpython.bytes cimport PyBytes_Size
@@ -1406,14 +1407,18 @@ cdef class WriteBatchIterator(object):
         self.pos += 1
         return ret
 
+ctypedef db.DBWithTTL* pDBWithTTL        
+
 @cython.no_gc_clear
 cdef class DB(object):
     cdef Options opts
     cdef db.DB* db
+    cdef cpp_bool ttl_db
 
-    def __cinit__(self, db_name, Options opts, read_only=False):
+    def __cinit__(self, db_name, Options opts, read_only=False, int32_t ttl=-1):
         cdef Status st
         cdef string db_path
+        cdef db.DBWithTTL* db_ttl
         self.db = NULL
         self.opts = None
 
@@ -1421,19 +1426,40 @@ cdef class DB(object):
             raise Exception("Options object is already used by another DB")
 
         db_path = path_to_string(db_name)
-        if read_only:
-            with nogil:
-                st = db.DB_OpenForReadOnly(
-                    deref(opts.opts),
-                    db_path,
-                    cython.address(self.db),
-                    False)
+        if ttl <= 0:
+            if read_only:
+                with nogil:
+                    st = db.DB_OpenForReadOnly(
+                        deref(opts.opts),
+                        db_path,
+                        cython.address(self.db),
+                        False)
+            else:
+                with nogil:
+                    st = db.DB_Open(
+                        deref(opts.opts),
+                        db_path,
+                        cython.address(self.db))
+            self.ttl_db = False
         else:
-            with nogil:
-                st = db.DB_Open(
-                    deref(opts.opts),
-                    db_path,
-                    cython.address(self.db))
+            if read_only:
+                with nogil:
+                    st = db.DBWithTTL_OpenForReadOnly(
+                        deref(opts.opts),
+                        db_path,
+                        cython.address(db_ttl),
+                        ttl,
+                        False)
+            else:
+                with nogil:
+                    st = db.DBWithTTL_Open(
+                        deref(opts.opts),
+                        db_path,
+                        cython.address(db_ttl),
+                        ttl)
+            self.db = db_ttl
+            self.ttl_db = True
+            
         check_status(st)
 
         # Inject the loggers into the python callbacks
@@ -1451,9 +1477,16 @@ cdef class DB(object):
         self.opts.in_use = True
 
     def __dealloc__(self):
+        cdef pDBWithTTL db_ttl
         if not self.db == NULL:
             with nogil:
-                del self.db
+                if self.ttl_db:                    
+                    # the destructor is not virutual
+                    # thus we need type cast
+                    db_ttl = cast.static_cast[pDBWithTTL](self.db)
+                    del db_ttl
+                else:
+                    del self.db
 
         if self.opts is not None:
             self.opts.in_use = False
