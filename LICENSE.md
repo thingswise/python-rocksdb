@@ -1,4 +1,4 @@
-Copyright (c) 2014, Stephan Hofmockel
+Copyright (c) 2014, Stephan Hofmockel and contributors
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,

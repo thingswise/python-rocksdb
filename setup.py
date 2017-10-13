@@ -1,6 +1,7 @@
 from setuptools import setup
 from setuptools import find_packages
 from distutils.extension import Extension
+import os
 
 try:
     from Cython.Build import cythonize
@@ -9,6 +10,16 @@ except ImportError:
     sources = ['rocksdb/_rocksdb.cpp']
 else:
     sources = ['rocksdb/_rocksdb.pyx']
+
+# Set LIBROCKSDB_A to specify the location of librocksdb.a to
+# link statically. Librocksdb.a must be compiled with -fPIC
+
+try:
+    librocksdb_a = [ os.environ["LIBROCKSDB_A"] ]
+    librocksdb_so = []
+except KeyError:
+    librocksdb_a = []
+    librocksdb_so = [ "rocksdb" ]
 
 mod1 = Extension(
     'rocksdb._rocksdb',
@@ -21,18 +32,19 @@ mod1 = Extension(
         '-Wconversion',
         '-fno-strict-aliasing'
     ],
+    extra_link_args=[] + librocksdb_a,
     language='c++',
     libraries=[
-        'rocksdb',
-        'snappy',
-        'bz2',
+        # 'rocksdb',
+        # 'snappy',
+        # 'bz2',
         'z'
-    ]
+    ] + librocksdb_so
 )
 
 setup(
     name="python-rocksdb",
-    version='0.6.7',
+    version='0.6.7+tw',
     description="Python bindings for RocksDB",
     keywords='rocksdb',
     author='Ming Hsuan Tu',
